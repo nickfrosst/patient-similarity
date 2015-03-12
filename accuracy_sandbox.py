@@ -25,21 +25,26 @@ def script (manuscript_file_name):
 
     entries = []
     with open(manuscript_file_name) as ifp:
-        header = ifp.readline()
+        header = ifp.readline().strip().split('\t')
         for line in ifp:
             entries += [line[:-1].split('\t')]
 
-    entries = is_same_cohort.script(entries,'data/pc.manuscript.hpo')
+    entries = is_same_cohort.direct_script(entries,'data/cohorts.txt')
     
     entries = normalize(entries)
+
+    #print(sum([entry[-1] for entry in entries])/2)
     
     #train_svm(entries)
-
+    print (header)
     #w=perceptron(entries)
     #print("perceptron")
     #print(perceptron_accuracy(entries,0,5))
-    print("index")
-    print(index_accuracy(entries,0,5))
+    print("simgic")
+    print(index_accuracy(entries,header.index('simgic'),5))
+
+    print("icca")
+    print(index_accuracy(entries,header.index('icca'),5))
     #for i in range(len(entries[0]) - 3):
     #    index_accuracy(entries,i,5)
 
@@ -49,25 +54,31 @@ def similarities_accuracy(similarities,n):
     similarities = sorted(similarities, key=lambda entry: entry[2],reverse=True)
     # now check accuracy
     patients = {}
+    potential = 0;
+    potential_matches = 0
     for sim in similarities: 
         if sim[0] not in patients:
-            patients[sim[0]] = top_n_similar_patients(sim[0],similarities,n)
 
-    positives =0
+            patients[sim[0]],number_of_matches = top_n_similar_patients(sim[0],similarities,n) #top_n_similar_patients_get_number(sim[0],similarities,n)  = 168
+            if (number_of_matches > 0):
+                potential_matches += 1
+
+    positives = 0
     for patient in patients:
         for matches in patients[patient]:
             if matches[2] == True:
                 positives +=1
                 break
 
-    return (positives)
+    return (positives,potential_matches)
+
 
 
 
 def index_accuracy(entries,i,n):
     similarities = []
     for entry in entries:
-        similarities += [entry[:2] + [entry[i+2],entry[-1]]]
+        similarities += [entry[:2] + [entry[i],entry[-1]]]
 
     return similarities_accuracy(similarities,n)
 
@@ -164,15 +175,36 @@ def normalize (entries):
         normalized_entries += [entry[:2]+ list(map(lambda a,b: a/b, entry[2:-1], m[2:-1])) + [entry[-1]]] 
     return normalized_entries
 
+def top_n_similar_patients_get_number (patient, sims,n):
+    top_n_sims = []
+    number_of_matches = 0
+    
+    for sim in sims:
+        patient2 = [x for x in sim[:2] if x != patient]
+        if (len(patient2) == 1):
+            if len(top_n_sims) < n:
+                top_n_sims.append([patient2[0],[2],sim[3]])
+            if sim[-1]:
+                number_of_matches += 1
+
+
+    return [top_n_sims, number_of_matches]
+
 def top_n_similar_patients (patient, sims,n):
     top_n_sims = []
-    i = 0;
-    while len(top_n_sims) < n:
-        patient2 = [x for x in sims[i][:2] if x not in [patient]]
+    number_of_matches = 0
+    
+    for sim in sims:
+        if len(top_n_sims) >= n:
+            break
+        
+        patient2 = [x for x in sim[:2] if x != patient]
+        
         if (len(patient2) == 1):
-            top_n_sims.append([patient2[0],sims[i][2],sims[i][3]])
-        i+=1
-    return top_n_sims
+            top_n_sims.append([patient2[0],[2],sim[3]])
+
+
+    return [top_n_sims,0]
 
 
 
